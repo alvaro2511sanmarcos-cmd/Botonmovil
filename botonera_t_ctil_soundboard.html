@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full select-none">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>SoundPad Studio - Botonera Móvil</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & Rajdhani -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            display: ['Rajdhani', 'sans-serif'],
+          },
+          colors: {
+            padDark: '#161b22',
+            padSurface: '#21262d',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Desactivar selecciones accidentales y zooms */
+    * {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+      touch-action: manipulation;
+    }
+    input, textarea {
+      -webkit-user-select: auto;
+      user-select: auto;
+    }
+    /* Estilos Neumórficos y Glow para Pads */
+    .pad-btn {
+      position: relative;
+      transition: all 0.08s cubic-bezier(0.2, 0, 0, 1);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 
+                  0 2px 4px -2px rgba(0, 0, 0, 0.3),
+                  inset 0 1px 1px 0 rgba(255, 255, 255, 0.1);
+    }
+    .pad-btn:active:not(.editing-mode) {
+      transform: scale(0.95);
+      box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8);
+      filter: brightness(1.25);
+    }
+    .pad-playing {
+      animation: padPulse 0.4s ease-out alternate;
+      border-color: rgba(255, 255, 255, 0.9) !important;
+      filter: brightness(1.35) !important;
+      box-shadow: 0 0 16px var(--pad-glow, #3b82f6) !important;
+    }
+    @keyframes padPulse {
+      0% { transform: scale(0.96); }
+      50% { transform: scale(1.02); }
+      100% { transform: scale(1); }
+    }
+    /* Scrollbar minimalista para el modal */
+    ::-webkit-scrollbar {
+      width: 4px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #30363d;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-b from-gray-950 via-[#0d1117] to-gray-950 text-gray-100 min-h-screen flex flex-col justify-between font-sans antialiased overflow-x-hidden">
+
+  <!-- ================= HEADER Y CONTROLES SUPERIORES ================= -->
+  <header class="w-full max-w-xl mx-auto pt-4 px-4 pb-2 flex flex-col gap-3">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <div class="w-3 h-3 rounded-full bg-emerald-500 animate-ping"></div>
+        <h1 class="text-xl font-bold tracking-wider font-display uppercase text-white flex items-center gap-1.5">
+          <span>SOUNDPAD</span><span class="text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-sans border border-emerald-500/30">STUDIO</span>
+        </h1>
+      </div>
+
+      <!-- Toggle Modo Edición -->
+      <button id="toggleEditModeBtn" onclick="toggleEditMode()" 
+              class="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all border border-gray-700 bg-gray-900 text-gray-300 hover:text-white">
+        <svg id="editIcon" class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+        </svg>
+        <span id="editModeStatus">Modo: En Vivo</span>
+      </button>
+    </div>
+
+    <!-- Barra de utilidad: Volumen + Botón STOP ALL -->
+    <div class="bg-gray-900/80 backdrop-blur border border-gray-800 rounded-xl p-2.5 flex items-center justify-between gap-3 shadow-inner">
+      <div class="flex items-center gap-2 flex-1 px-1">
+        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+        </svg>
+        <input type="range" id="masterVolume" min="0" max="1" step="0.01" value="0.9" oninput="changeMasterVolume(this.value)" 
+               class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+        <span id="volLabel" class="text-[11px] font-mono text-gray-400 min-w-[32px] text-right">90%</span>
+      </div>
+
+      <!-- Botón Pánico / Detener todo -->
+      <button onclick="stopAllAudio()" 
+              class="flex items-center gap-1.5 px-3.5 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 active:scale-95 transition rounded-lg text-xs font-bold tracking-wider uppercase font-display flex-shrink-0">
+        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+          <rect x="5" y="5" width="14" height="14" rx="2" />
+        </svg>
+        <span>Detener</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= GRID DE PAD TÁCTILES ================= -->
+  <main class="w-full max-w-xl mx-auto flex-1 p-4 flex flex-col justify-center">
+    <div id="padsGrid" class="grid grid-cols-3 sm:grid-cols-4 gap-2.5 sm:gap-3.5">
+      <!-- Los 12 pads se inyectan dinámicamente con JavaScript -->
+    </div>
+  </main>
+
+  <!-- ================= BANNER INFERIOR DE ESTADO / TIP ================= -->
+  <footer class="w-full max-w-xl mx-auto px-4 pb-4 pt-1 text-center text-gray-400 text-xs">
+    <div id="footerNotice" class="bg-gray-900/60 border border-gray-800/80 rounded-lg py-2 px-3 text-[11px] leading-tight">
+      💡 Toca <span class="text-amber-400 font-semibold">«Modo: En Vivo»</span> para asignar tus pistas de audio locales o renombrar botones.
+    </div>
+  </footer>
+
+  <!-- ================= MODAL DE EDICIÓN DE PAD ================= -->
+  <div id="editModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 hidden transition-opacity duration-200 opacity-0">
+    <div id="modalContent" class="bg-gray-900 border border-gray-800 w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl transform transition-transform duration-200 translate-y-8 sm:translate-y-0 max-h-[90vh] overflow-y-auto">
+      
+      <div class="flex items-center justify-between pb-3 border-b border-gray-800 mb-4">
+        <div class="flex items-center gap-2">
+          <div id="modalPadBadge" class="w-6 h-6 rounded-md bg-blue-500 text-black flex items-center justify-center font-bold text-xs font-display">1</div>
+          <h2 class="text-base font-bold text-white tracking-wide">Configurar Botón</h2>
+        </div>
+        <button onclick="closeModal()" class="text-gray-400 hover:text-white p-1 rounded-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- 1. Nombre / Etiqueta -->
+      <div class="mb-4">
+        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Nombre del Botón</label>
+        <input type="text" id="editPadName" maxlength="18" 
+               class="w-full bg-gray-950 border border-gray-700 focus:border-emerald-500 rounded-lg px-3 py-2 text-white text-sm outline-none transition" 
+               placeholder="Ej. Bocina, Grito, Beat 1">
+      </div>
+
+      <!-- 2. Cargar Archivo de Audio -->
+      <div class="mb-4">
+        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Archivo de Sonido</label>
+        <div class="flex flex-col gap-2">
+          <label class="flex flex-col items-center justify-center border-2 border-dashed border-gray-700 hover:border-emerald-500 bg-gray-950/60 rounded-xl p-3 cursor-pointer transition">
+            <svg class="w-6 h-6 text-emerald-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <span id="selectedFileName" class="text-xs text-gray-300 font-medium text-center truncate max-w-xs">Seleccionar desde tu celular (.mp3, .wav, .m4a, .ogg)</span>
+            <input type="file" id="audioFileInput" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac" class="hidden" onchange="handleFileSelected(event)">
+          </label>
+          <div id="audioStatusText" class="text-[11px] text-gray-500 flex justify-between items-center px-1">
+            <span>Sin audio asignado</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Selección de Color del Pad -->
+      <div class="mb-5">
+        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Color del Pad</label>
+        <div class="grid grid-cols-6 gap-2" id="colorPickerContainer">
+          <!-- Colores dinámicos generados con JS -->
+        </div>
+      </div>
+
+      <!-- Acciones del Modal -->
+      <div class="flex gap-2 pt-2 border-t border-gray-800">
+        <button type="button" onclick="deletePadAudio()" 
+                class="px-3 py-2 bg-red-950/50 hover:bg-red-900/60 text-red-400 border border-red-800/60 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          Limpiar
+        </button>
+
+        <button type="button" onclick="closeModal()" 
+                class="flex-1 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-xs font-semibold transition">
+          Cancelar
+        </button>
+
+        <button type="button" onclick="savePadConfig()" 
+                class="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition shadow-md shadow-emerald-950">
+          Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= NOTIFICACIÓN TOAST FLOTANTE ================= -->
+  <div id="toast" class="fixed top-5 left-1/2 transform -translate-x-1/2 z-50 bg-gray-900/95 border border-emerald-500/40 text-emerald-400 text-xs px-4 py-2 rounded-full shadow-lg pointer-events-none transition-all duration-300 opacity-0 -translate-y-2">
+    Acción completada
+  </div>
+
+  <script>
+    // ==========================================
+    // 1. CONFIGURACIÓN Y CONSTANTES
+    // ==========================================
+    const TOTAL_PADS = 12;
+    const DB_NAME = 'SoundPadStudioDB';
+    const DB_VERSION = 1;
+    const STORE_NAME = 'pads_data';
+
+    // Paleta de colores personalizables (CSS Classes + Glow Hex)
+    const PAD_COLORS = [
+      { name: 'Emerald', bg: 'bg-emerald-600', border: 'border-emerald-400', glow: '#10b981', hex: '#059669' },
+      { name: 'Blue',    bg: 'bg-sky-600',     border: 'border-sky-400',     glow: '#0284c7', hex: '#0284c7' },
+      { name: 'Purple',  bg: 'bg-purple-600',  border: 'border-purple-400',  glow: '#9333ea', hex: '#7e22ce' },
+      { name: 'Amber',   bg: 'bg-amber-600',   border: 'border-amber-400',   glow: '#d97706', hex: '#b45309' },
+      { name: 'Rose',    bg: 'bg-rose-600',    border: 'border-rose-400',    glow: '#e11d48', hex: '#be123c' },
+      { name: 'Indigo',  bg: 'bg-indigo-600',  border: 'border-indigo-400',  glow: '#4f46e5', hex: '#4338ca' }
+    ];
+
+    // Estado en memoria
+    let db = null;
+    let padsState = [];
+    let isEditMode = false;
+    let currentEditingPadId = null;
+    let tempBlobToSave = null;
+    let selectedColorIndex = 0;
+
+    // Web Audio API para cero latencia
+    let audioCtx = null;
+    let masterGainNode = null;
+    let activeSources = {}; // Guarda { padId: AudioBufferSourceNode }
+
+    // ==========================================
+    // 2. INICIALIZACIÓN DE INDEXEDDB
+    // ==========================================
+    function initDB() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+        request.onupgradeneeded = (e) => {
+          const dbInstance = e.target.result;
+          if (!dbInstance.objectStoreNames.contains(STORE_NAME)) {
+            dbInstance.createObjectStore(STORE_NAME, { keyPath: 'id' });
+          }
+        };
+
+        request.onsuccess = (e) => {
+          db = e.target.result;
+          resolve(db);
+        };
+
+        request.onerror = (e) => {
+          console.error("Error abriendo IndexedDB:", e);
+          reject(e);
+        };
+      });
+    }
+
+    async function loadPadsFromDB() {
+      return new Promise((resolve) => {
+        if (!db) return resolve([]);
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.getAll();
+
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => resolve([]);
+      });
+    }
+
+    async function savePadToDB(padData) {
+      return new Promise((resolve, reject) => {
+        if (!db) return reject('DB no inicializada');
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.put(padData);
+
+        req.onsuccess = () => resolve();
+        req.onerror = (err) => reject(err);
+      });
+    }
+
+    // ==========================================
+    // 3. MOTOR DE AUDIO (Web Audio API)
+    // ==========================================
+    function getAudioContext() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContextClass();
+        masterGainNode = audioCtx.createGain();
+        masterGainNode.gain.value = 0.9;
+        masterGainNode.connect(audioCtx.destination);
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    function changeMasterVolume(val) {
+      if (masterGainNode) {
+        masterGainNode.gain.value = parseFloat(val);
+      }
+      const percent = Math.round(val * 100);
+      document.getElementById('volLabel').textContent = `${percent}%`;
+    }
+
+    // Reproduce un audio usando su Blob en memoria
+    async function playPadAudio(pad) {
+      if (!pad.audioBlob) {
+        // Si no tiene audio y estamos en vivo, dar feedback y ofrecer editar
+        triggerHaptic([30, 40]);
+        showToast(`Pad ${pad.id} vacío. Toca 'Modo Edición' para cargar audio.`);
+        return;
+      }
+
+      const ctx = getAudioContext();
+
+      try {
+        // Feedback Háptico en teléfonos
+        triggerHaptic(25);
+
+        // Si ya estaba sonando este pad específico, detenerlo para baja latencia instantánea
+        if (activeSources[pad.id]) {
+          try { activeSources[pad.id].stop(); } catch(e) {}
+          delete activeSources[pad.id];
+        }
+
+        // Convertir Blob a ArrayBuffer y luego decodificar en audio buffer
+        const arrayBuffer = await pad.audioBlob.arrayBuffer();
+        const audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+
+        const source = ctx.createBufferSource();
+        source.buffer = audioBuffer;
+
+        // Conectar a volumen maestro
+        source.connect(masterGainNode);
+
+        // Feedback visual
+        highlightPad(pad.id, true);
+
+        source.onended = () => {
+          highlightPad(pad.id, false);
+          delete activeSources[pad.id];
+        };
+
+        source.start(0);
+        activeSources[pad.id] = source;
+
+      } catch (err) {
+        console.error("Error reproduciendo audio:", err);
+        showToast("Error al reproducir el formato de audio");
+        highlightPad(pad.id, false);
+      }
+    }
+
+    function stopAllAudio() {
+      triggerHaptic([40, 30, 40]);
+      Object.keys(activeSources).forEach(padId => {
+        try {
+          activeSources[padId].stop();
+        } catch(e) {}
+        highlightPad(padId, false);
+      });
+      activeSources = {};
+      showToast("Todos los sonidos detenidos");
+    }
+
+    function triggerHaptic(pattern = 25) {
+      if (navigator.vibrate) {
+        try {
+          navigator.vibrate(pattern);
+        } catch (e) {}
+      }
+    }
+
+    function highlightPad(padId, isPlaying) {
+      const btn = document.getElementById(`pad-btn-${padId}`);
+      if (!btn) return;
+      if (isPlaying) {
+        btn.classList.add('pad-playing');
+      } else {
+        btn.classList.remove('pad-playing');
+      }
+    }
+
+    // ==========================================
+    // 4. RENDERIZADO Y MODOS
+    // ==========================================
+    function renderPads() {
+      const grid = document.getElementById('padsGrid');
+      grid.innerHTML = '';
+
+      padsState.forEach((pad) => {
+        const color = PAD_COLORS[pad.colorIndex || 0];
+        const hasAudio = !!pad.audioBlob;
+
+        const button = document.createElement('button');
+        button.id = `pad-btn-${pad.id}`;
+        button.style.setProperty('--pad-glow', color.glow);
+        button.className = `pad-btn relative aspect-square rounded-2xl flex flex-col justify-between p-2.5 sm:p-3 overflow-hidden text-left border ${
+          hasAudio 
+            ? `${color.bg} ${color.border} text-white` 
+            : 'bg-padDark border-gray-800 text-gray-500'
+        } ${isEditMode ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-gray-950 animate-pulse' : ''}`;
+
+        // Event listener táctil unificado
+        button.onclick = () => onPadClicked(pad.id);
+
+        button.innerHTML = `
+          <!-- Cabecera del Pad: ID y Estado de audio -->
+          <div class="flex items-center justify-between w-full pointer-events-none">
+            <span class="text-xs font-mono font-bold px-1.5 py-0.5 rounded ${
+              hasAudio ? 'bg-black/30 text-white' : 'bg-gray-800/80 text-gray-400'
+            }">${String(pad.id).padStart(2, '0')}</span>
+
+            ${isEditMode 
+              ? `<span class="text-[10px] bg-amber-400 text-black px-1.5 py-0.5 rounded font-black tracking-wide uppercase">EDIT</span>` 
+              : hasAudio 
+                ? `<span class="w-2 h-2 rounded-full bg-white shadow-sm shadow-white animate-pulse"></span>`
+                : `<span class="w-1.5 h-1.5 rounded-full bg-gray-700"></span>`
+            }
+          </div>
+
+          <!-- Cuerpo: Nombre / Icono -->
+          <div class="my-auto w-full text-center flex flex-col items-center justify-center pointer-events-none px-0.5">
+            ${hasAudio ? `
+              <p class="font-bold text-xs sm:text-sm tracking-wide leading-tight line-clamp-2 drop-shadow-md break-words">
+                ${pad.name || `Pad ${pad.id}`}
+              </p>
+            ` : `
+              <svg class="w-6 h-6 stroke-current opacity-30 my-1" fill="none" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4" />
+              </svg>
+              <p class="text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Vacío</p>
+            `}
+          </div>
+
+          <!-- Footer Pad: Barra decorativa / indicador -->
+          <div class="w-full flex items-center justify-center pointer-events-none">
+            <div class="w-8 h-1 rounded-full ${hasAudio ? 'bg-white/40' : 'bg-gray-800'}"></div>
+          </div>
+        `;
+
+        grid.appendChild(button);
+      });
+    }
+
+    function onPadClicked(padId) {
+      const pad = padsState.find(p => p.id === padId);
+      if (!pad) return;
+
+      if (isEditMode) {
+        openEditModal(pad);
+      } else {
+        playPadAudio(pad);
+      }
+    }
+
+    function toggleEditMode() {
+      isEditMode = !isEditMode;
+      triggerHaptic(20);
+
+      const btn = document.getElementById('toggleEditModeBtn');
+      const label = document.getElementById('editModeStatus');
+      const footerNotice = document.getElementById('footerNotice');
+
+      if (isEditMode) {
+        btn.classList.remove('bg-gray-900', 'text-gray-300', 'border-gray-700');
+        btn.classList.add('bg-amber-400', 'text-black', 'border-amber-300', 'font-black');
+        label.textContent = 'Modo: Edición ACTIVO';
+        footerNotice.innerHTML = `✏️ <b>Modo Edición activado:</b> Toca cualquier pad para cargar audios, renombrarlo o cambiar colores.`;
+      } else {
+        btn.classList.add('bg-gray-900', 'text-gray-300', 'border-gray-700');
+        btn.classList.remove('bg-amber-400', 'text-black', 'border-amber-300', 'font-black');
+        label.textContent = 'Modo: En Vivo';
+        footerNotice.innerHTML = `💡 Toca <span class="text-amber-400 font-semibold">«Modo: En Vivo»</span> para asignar tus pistas de audio locales o renombrar botones.`;
+      }
+
+      renderPads();
+    }
+
+    // ==========================================
+    // 5. GESTIÓN DEL MODAL DE EDICIÓN
+    // ==========================================
+    function renderColorPickers() {
+      const container = document.getElementById('colorPickerContainer');
+      container.innerHTML = '';
+
+      PAD_COLORS.forEach((col, index) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `w-10 h-10 rounded-xl ${col.bg} transition-all transform flex items-center justify-center border-2 ${
+          selectedColorIndex === index ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-60'
+        }`;
+        btn.onclick = () => {
+          selectedColorIndex = index;
+          renderColorPickers();
+        };
+
+        if (selectedColorIndex === index) {
+          btn.innerHTML = `
+            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+            </svg>
+          `;
+        }
+
+        container.appendChild(btn);
+      });
+    }
+
+    function openEditModal(pad) {
+      currentEditingPadId = pad.id;
+      tempBlobToSave = pad.audioBlob || null;
+      selectedColorIndex = pad.colorIndex || 0;
+
+      document.getElementById('modalPadBadge').textContent = pad.id;
+      document.getElementById('editPadName').value = pad.name || `Efecto ${pad.id}`;
+      
+      const fileNameLabel = document.getElementById('selectedFileName');
+      const statusText = document.getElementById('audioStatusText');
+
+      if (pad.audioBlob) {
+        fileNameLabel.textContent = pad.fileName || 'Audio cargado en memoria';
+        statusText.innerHTML = `<span class="text-emerald-400">✓ Listo para sonar</span> <span>${(pad.audioBlob.size / 1024).toFixed(1)} KB</span>`;
+      } else {
+        fileNameLabel.textContent = 'Toca para elegir archivo (.mp3, .wav, etc)';
+        statusText.innerHTML = `<span class="text-gray-500">Sin archivo asignado</span>`;
+      }
+
+      renderColorPickers();
+
+      const modal = document.getElementById('editModal');
+      const content = document.getElementById('modalContent');
+      modal.classList.remove('hidden');
+      setTimeout(() => {
+        modal.classList.remove('opacity-0');
+        content.classList.remove('translate-y-8');
+      }, 10);
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('editModal');
+      const content = document.getElementById('modalContent');
+      modal.classList.add('opacity-0');
+      content.classList.add('translate-y-8');
+      setTimeout(() => {
+        modal.classList.add('hidden');
+        currentEditingPadId = null;
+        tempBlobToSave = null;
+        document.getElementById('audioFileInput').value = '';
+      }, 200);
+    }
+
+    function handleFileSelected(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      tempBlobToSave = file;
+      document.getElementById('selectedFileName').textContent = file.name;
+      document.getElementById('audioStatusText').innerHTML = `
+        <span class="text-emerald-400">✓ Nuevo: ${file.name}</span>
+        <span>${(file.size / 1024).toFixed(1)} KB</span>
+      `;
+      
+      // Si el campo de nombre está vacío o por defecto, usar el nombre del archivo sin extensión
+      const nameInput = document.getElementById('editPadName');
+      if (!nameInput.value || nameInput.value.startsWith('Efecto') || nameInput.value.startsWith('Pad')) {
+        const cleanName = file.name.replace(/\.[^/.]+$/, "").substring(0, 16);
+        nameInput.value = cleanName;
+      }
+      triggerHaptic(20);
+    }
+
+    async function deletePadAudio() {
+      tempBlobToSave = null;
+      document.getElementById('selectedFileName').textContent = 'Seleccionar sonido desde tu teléfono';
+      document.getElementById('audioStatusText').innerHTML = `<span class="text-red-400">Sonido eliminado. Guarda para confirmar.</span>`;
+      document.getElementById('audioFileInput').value = '';
+      triggerHaptic(30);
+    }
+
+    async function savePadConfig() {
+      if (currentEditingPadId === null) return;
+
+      const padIndex = padsState.findIndex(p => p.id === currentEditingPadId);
+      if (padIndex === -1) return;
+
+      const newName = document.getElementById('editPadName').value.trim() || `Pad ${currentEditingPadId}`;
+      const fileName = tempBlobToSave instanceof File ? tempBlobToSave.name : (padsState[padIndex].fileName || 'audio.mp3');
+
+      // Actualizar objeto en memoria
+      padsState[padIndex] = {
+        id: currentEditingPadId,
+        name: newName,
+        audioBlob: tempBlobToSave,
+        fileName: tempBlobToSave ? fileName : null,
+        colorIndex: selectedColorIndex
+      };
+
+      // Guardar en almacenamiento permanente IndexedDB
+      try {
+        await savePadToDB(padsState[padIndex]);
+        showToast(`Pad ${currentEditingPadId} guardado`);
+      } catch (err) {
+        console.error("Error guardando en BD:", err);
+        showToast("Error al guardar en memoria local");
+      }
+
+      closeModal();
+      renderPads();
+    }
+
+    // ==========================================
+    // 6. UTILIDADES Y NOTIFICACIONES
+    // ==========================================
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.remove('opacity-0', '-translate-y-2');
+      setTimeout(() => {
+        toast.classList.add('opacity-0', '-translate-y-2');
+      }, 2400);
+    }
+
+    // ==========================================
+    // 7. INICIALIZACIÓN DE LA APLICACIÓN
+    // ==========================================
+    async function startApp() {
+      try {
+        await initDB();
+        const storedPads = await loadPadsFromDB();
+
+        // Inicializar 12 pads combinando datos persistidos
+        padsState = [];
+        for (let i = 1; i <= TOTAL_PADS; i++) {
+          const found = storedPads.find(p => p.id === i);
+          if (found) {
+            padsState.push(found);
+          } else {
+            padsState.push({
+              id: i,
+              name: '',
+              audioBlob: null,
+              fileName: null,
+              colorIndex: (i - 1) % PAD_COLORS.length
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("IndexedDB fallback a memoria:", e);
+        // Fallback básico si IndexedDB fallara
+        for (let i = 1; i <= TOTAL_PADS; i++) {
+          padsState.push({
+            id: i,
+            name: '',
+            audioBlob: null,
+            fileName: null,
+            colorIndex: (i - 1) % PAD_COLORS.length
+          });
+        }
+      }
+
+      renderPads();
+    }
+
+    window.addEventListener('DOMContentLoaded', startApp);
+  </script>
+</body>
+</html>
